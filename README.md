@@ -17,3 +17,4 @@ Le main du programme va utiliser HSP et Monte-Carlo sur les domaines et problèm
 A partir des données du fichier csv, des graphiques ont été réalisés avec le fichier "src/pddl/script.py" afin de comparer les performances des deux algorithmes sur les différents problèmes des différents domaines. Sur les abscisse de ces graphiques, les problèmes sont rangés du plus simple au plus complexe.
 Remarque : Les problèmes de type depot on été mis de côtés car trop couteux en temps à résoudre.
 Nous avons donc 6 graphiques présents dans "src/pddl": 1 pour le temps et 1 pour le nombre d'actions pour chacuns des domaines blocks, gripper et logistics.
+Ils sont compilés dans le fichier graphs.pdf à la racine du projet.

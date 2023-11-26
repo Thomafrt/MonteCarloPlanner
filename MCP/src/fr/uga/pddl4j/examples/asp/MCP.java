@@ -270,7 +270,7 @@ public class MCP extends AbstractPlanner {
 			List<File> logistics_pb = List.of(new File("src/pddl/logistics").listFiles());
 			Map<File, List<File>> pddlFiles = new TreeMap<>();
 			pddlFiles.put(new File("src/pddl/blocks_domain.pddl"), blocks_pb);
-			pddlFiles.put(new File("src/pddl/depot_domain.pddl"), depot_pb);
+			//pddlFiles.put(new File("src/pddl/depot_domain.pddl"), depot_pb);
 			pddlFiles.put(new File("src/pddl/gripper_domain.pddl"), gripper_pb);
 			pddlFiles.put(new File("src/pddl/logistics_domain.pddl"), logistics_pb);
 			for(File domainFile : pddlFiles.keySet()) {

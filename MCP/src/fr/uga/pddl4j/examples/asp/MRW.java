@@ -147,6 +147,11 @@ public class MRW extends AbstractPlanner {
 		 */
 		while (!n.satisfy(problem.getGoal())) {
 
+
+			//final int timeout = this.getTimeout() * 1000;
+			//long time = 0;
+			//while (time < timeout) {
+
 			/**
 			 * Dans le cas où PRW échoue un trop grand nombre de fois, on recommence à partir de l'état initial.
 			 * La deuxième partie de la condition vérifie qu'il existe des actions applicables à n.
@@ -340,22 +345,22 @@ public class MRW extends AbstractPlanner {
 			/**
 			 * 2 attributs pour l'écriture des résultats dans un fichier + écriture de l'entête dans le fichier.
 			 */
-			File resultFile = new File("pddl/results.csv");
+			File resultFile = new File("src/pddl/data.csv");
 			BufferedWriter writer = new BufferedWriter(new FileWriter(resultFile));
-			writer.write("domain,n_problem,MRW_time_spent,MRW_plan_length,HSP_time_spent,HSP_plan_length");
+			writer.write("domain,problem_number,MCP_time,MCP_plan_length,HSP_time,HSP_plan_length");
 			writer.newLine();
 
 
-			List<File> blocks_problems = List.of(new File("pddl/problemes_blocks").listFiles());
-			List<File> depots_problems = List.of(new File("pddl/problemes_depots").listFiles());
-			List<File> gripper_problems = List.of(new File("pddl/problemes_gripper").listFiles());
-			List<File> logistics_problems = List.of(new File("pddl/problemes_logistics").listFiles());
+			List<File> blocks_problems = List.of(new File("src/pddl/blocks").listFiles());
+			//List<File> depot_problems = List.of(new File("src/pddl/depot").listFiles());
+			List<File> gripper_problems = List.of(new File("src/pddl/gripper").listFiles());
+			List<File> logistics_problems = List.of(new File("src/pddl/logistics").listFiles());
 
 			Map<File, List<File>> pddlFiles = new TreeMap<>();
-			pddlFiles.put(new File("pddl/domain_blocks.pddl"), blocks_problems);
-			pddlFiles.put(new File("pddl/domain_depots.pddl"), depots_problems);
-			pddlFiles.put(new File("pddl/domain_gripper.pddl"), gripper_problems);
-			pddlFiles.put(new File("pddl/domain_logistics.pddl"), logistics_problems);
+			pddlFiles.put(new File("src/pddl/blocks_domain.pddl"), blocks_problems);
+			//pddlFiles.put(new File("src/pddl/depot_domain.pddl"), depot_problems);
+			pddlFiles.put(new File("src/pddl/gripper_domain.pddl"), gripper_problems);
+			pddlFiles.put(new File("src/pddl/logistics_domain.pddl"), logistics_problems);
 
 			for(File domainFile : pddlFiles.keySet()) {
 				for(File problemFile : pddlFiles.get(domainFile)) {
@@ -386,41 +391,41 @@ public class MRW extends AbstractPlanner {
 
 	private static String run(AbstractPlanner planner) throws FileNotFoundException {
 		try {
-		Plan p = planner.solve();
-		Statistics s = planner.getStatistics();
-		double TimeSpent = s.getTimeToParse() + s.getTimeToEncode() + s.getTimeToSearch();
-		int planLength = p == null ? 0 : p.size();
-		return TimeSpent + "," + planLength;
+			Plan p = planner.solve();
+			Statistics s = planner.getStatistics();
+			double TimeSpent = s.getTimeToParse() + s.getTimeToEncode() + s.getTimeToSearch();
+			int planLength = p == null ? 0 : p.size();
+			return TimeSpent + "," + planLength;
 		}
 		catch(InvalidConfigurationException e) {
 			return "";
 		}
-		
+
 	}
-	
-    /**
-     * Returns if a specified problem is supported by the planner. Just ADL problem can be solved by this planner.
-     *
-     * @param problem the problem to test.
-     * @return <code>true</code> if the problem is supported <code>false</code> otherwise.
-     */
-    @Override
-    public boolean isSupported(Problem problem) {
-        return (problem.getRequirements().contains(RequireKey.ACTION_COSTS)
-            || problem.getRequirements().contains(RequireKey.CONSTRAINTS)
-            || problem.getRequirements().contains(RequireKey.CONTINOUS_EFFECTS)
-            || problem.getRequirements().contains(RequireKey.DERIVED_PREDICATES)
-            || problem.getRequirements().contains(RequireKey.DURATIVE_ACTIONS)
-            || problem.getRequirements().contains(RequireKey.DURATION_INEQUALITIES)
-            || problem.getRequirements().contains(RequireKey.FLUENTS)
-            || problem.getRequirements().contains(RequireKey.GOAL_UTILITIES)
-            || problem.getRequirements().contains(RequireKey.METHOD_CONSTRAINTS)
-            || problem.getRequirements().contains(RequireKey.NUMERIC_FLUENTS)
-            || problem.getRequirements().contains(RequireKey.OBJECT_FLUENTS)
-            || problem.getRequirements().contains(RequireKey.PREFERENCES)
-            || problem.getRequirements().contains(RequireKey.TIMED_INITIAL_LITERALS)
-            || problem.getRequirements().contains(RequireKey.HIERARCHY))
-            ? false : true;
-    }
+
+	/**
+	 * Returns if a specified problem is supported by the planner. Just ADL problem can be solved by this planner.
+	 *
+	 * @param problem the problem to test.
+	 * @return <code>true</code> if the problem is supported <code>false</code> otherwise.
+	 */
+	@Override
+	public boolean isSupported(Problem problem) {
+		return (problem.getRequirements().contains(RequireKey.ACTION_COSTS)
+				|| problem.getRequirements().contains(RequireKey.CONSTRAINTS)
+				|| problem.getRequirements().contains(RequireKey.CONTINOUS_EFFECTS)
+				|| problem.getRequirements().contains(RequireKey.DERIVED_PREDICATES)
+				|| problem.getRequirements().contains(RequireKey.DURATIVE_ACTIONS)
+				|| problem.getRequirements().contains(RequireKey.DURATION_INEQUALITIES)
+				|| problem.getRequirements().contains(RequireKey.FLUENTS)
+				|| problem.getRequirements().contains(RequireKey.GOAL_UTILITIES)
+				|| problem.getRequirements().contains(RequireKey.METHOD_CONSTRAINTS)
+				|| problem.getRequirements().contains(RequireKey.NUMERIC_FLUENTS)
+				|| problem.getRequirements().contains(RequireKey.OBJECT_FLUENTS)
+				|| problem.getRequirements().contains(RequireKey.PREFERENCES)
+				|| problem.getRequirements().contains(RequireKey.TIMED_INITIAL_LITERALS)
+				|| problem.getRequirements().contains(RequireKey.HIERARCHY))
+				? false : true;
+	}
 
 }

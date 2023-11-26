@@ -1,24 +1,6 @@
-/*
- * Copyright (c) 2021 by Damien Pellier <Damien.Pellier@imag.fr>.
- *
- * This file is part of PDDL4J library.
- *
- * PDDL4J is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * PDDL4J is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with PDDL4J.  If not, see <http://www.gnu.org/licenses/>
- */
-
 package fr.uga.pddl4j.examples.asp;
 
+import fr.uga.pddl4j.problem.InitialState;
 import fr.uga.pddl4j.problem.State;
 
 /**
@@ -69,7 +51,7 @@ public final class Node extends State {
      *
      * @param state     the logical state of the node.
      * @param parent    the parent node of the node.
-     * @param action   the action applied to reached the node from its parent.
+     * @param action    the action applied to reached the node from its parent.
      * @param cost      the cost to reach the node from the root node.
      * @param heuristic the estimated distance to reach the goal from the node.
      */
@@ -198,10 +180,9 @@ public final class Node extends State {
      *
      * @param weight the weight of the heuristic.
      * @return the value of the heuristic function, i.e.,
-     * <code>this.node.getCost() + this.node.getHeuristic()</code>.
+     *         <code>this.node.getCost() + this.node.getHeuristic()</code>.
      */
     public final double getValueF(double weight) {
         return weight * this.heuristic + this.cost;
     }
-
 }

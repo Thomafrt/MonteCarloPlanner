@@ -2,23 +2,27 @@ package fr.uga.pddl4j.examples.asp;
 
 import fr.uga.pddl4j.heuristics.state.StateHeuristic;
 import fr.uga.pddl4j.parser.DefaultParsedProblem;
+import fr.uga.pddl4j.parser.RequireKey;
 import fr.uga.pddl4j.plan.Plan;
 import fr.uga.pddl4j.plan.SequentialPlan;
 import fr.uga.pddl4j.planners.AbstractPlanner;
+import fr.uga.pddl4j.planners.Planner;
+import fr.uga.pddl4j.planners.PlannerConfiguration;
 import fr.uga.pddl4j.planners.ProblemNotSupportedException;
+import fr.uga.pddl4j.planners.SearchStrategy;
+import fr.uga.pddl4j.planners.statespace.search.StateSpaceSearch;
 import fr.uga.pddl4j.planners.Statistics;
 import fr.uga.pddl4j.planners.statespace.HSP;
 import fr.uga.pddl4j.problem.*;
 import fr.uga.pddl4j.planners.InvalidConfigurationException;
 import fr.uga.pddl4j.problem.operator.Action;
+import fr.uga.pddl4j.problem.operator.ConditionalEffect;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import picocli.CommandLine;
-import fr.uga.pddl4j.parser.RequireKey;
 
 import java.io.*;
 import java.util.*;
-
 
 
 /**
@@ -42,6 +46,25 @@ public class MCP extends AbstractPlanner {
 	 */
 	private static final Logger LOGGER = LogManager.getLogger(MCP.class.getName());
 
+    /**
+     * The HEURISTIC property used for planner configuration.
+     */
+    public static final String HEURISTIC_SETTING = "HEURISTIC";
+
+    /**
+     * The default value of the HEURISTIC property used for planner configuration.
+     */
+    public static final StateHeuristic.Name DEFAULT_HEURISTIC = StateHeuristic.Name.FAST_FORWARD;
+
+    /**
+     * The WEIGHT_HEURISTIC property used for planner configuration.
+     */
+    public static final String WEIGHT_HEURISTIC_SETTING = "WEIGHT_HEURISTIC";
+
+    /**
+     * The default value of the WEIGHT_HEURISTIC property used for planner configuration.
+     */
+    public static final double DEFAULT_WEIGHT_HEURISTIC = 1.0;
 	/**
 	 * The weight of the heuristic.
 	 */
@@ -50,22 +73,66 @@ public class MCP extends AbstractPlanner {
 	/**
 	 * The name of the heuristic used by the planner.
 	 */
-	private StateHeuristic.Name heuristicName = StateHeuristic.Name.FAST_FORWARD;
+	private StateHeuristic.Name heuristic;
 
 	/**
-	 * 
+	 * The number of random walks.
 	 */
-	public static long NUM_WALK = 700;
+	public static long NUM_WALK = 2000;
 
 	/**
-	 * 
+	 * The length of a random walk.
 	 */
-	public static long LENGTH_WALK = 7;
+	public static long LENGTH_WALK = 10;
 
 	/**
-	 * 
+	 * The number of steps before restarting the search.
 	 */
 	public static long MAX_STEPS = 7;
+
+    /**
+     * Creates a new Monte-Carlo search planner with the default configuration.
+     */
+    public MCP() {
+        this(MCP.getDefaultConfiguration());
+    }
+
+    /**
+     * Creates a new Monte-Carlo search planner with a specified configuration.
+     *
+     * @param configuration the configuration of the planner.
+     */
+    public MCP(final PlannerConfiguration configuration) {
+        super();
+        this.setConfiguration(configuration);
+    }
+
+    /**
+     * Sets the weight of the heuristic.
+     *
+     * @param weight the weight of the heuristic. The weight must be greater than 0.
+     * @throws IllegalArgumentException if the weight is strictly less than 0.
+     */
+    @CommandLine.Option(names = {"-w", "--weight"}, defaultValue = "1.0",
+        paramLabel = "<weight>", description = "Set the weight of the heuristic (preset 1.0).")
+    public void setHeuristicWeight(final double weight) {
+        if (weight <= 0) {
+            throw new IllegalArgumentException("Weight <= 0");
+        }
+        this.heuristicWeight = weight;
+    }
+
+    /**
+     * Set the name of heuristic used by the planner to the solve a planning problem.
+     *
+     * @param heuristic the name of the heuristic.
+     */
+    @CommandLine.Option(names = {"-e", "--heuristic"}, defaultValue = "FAST_FORWARD",
+        description = "Set the heuristic : AJUSTED_SUM, AJUSTED_SUM2, AJUSTED_SUM2M, COMBO, "
+            + "MAX, FAST_FORWARD SET_LEVEL, SUM, SUM_MUTEX (preset: FAST_FORWARD)")
+    public void setHeuristic(StateHeuristic.Name heuristic) {
+        this.heuristic = heuristic;
+    }
 
 	/**
 	 * Returns the name of the heuristic used by the planner to solve a planning problem.
@@ -73,7 +140,7 @@ public class MCP extends AbstractPlanner {
 	 * @return the name of the heuristic used by the planner to solve a planning problem.
 	 */
 	public final StateHeuristic.Name getHeuristic() {
-		return this.heuristicName;
+		return this.heuristic;
 	}
 
 	/**
@@ -106,30 +173,161 @@ public class MCP extends AbstractPlanner {
 	 */
 	@Override
 	public Plan solve(Problem problem) {
-		LOGGER.info("* Algo MCP a débuté \n");
+		LOGGER.info("* Starting Monte-Carlo search\n");
 		final long begin = System.currentTimeMillis();
 		final Plan plan = this.monteCarlo(problem);
 		final long end = System.currentTimeMillis();
 		if (plan != null) {
-			LOGGER.info("* Recherche MCP a réussi \n");
-			this.getStatistics().setTimeToSearch(end - begin);
-		} else {
-			LOGGER.info("* Recherche MCP a échoué \n");
+			LOGGER.info("* Monte-Carlo search succeeded\n");
+			this.getStatistics().setTimeToSearch(end - begin);			} else {
+			LOGGER.info("* Monte-Carlo search failed\n");
 		}
 		return plan;
 	}
+	
+ /**
+     * Checks the planner configuration and returns if the configuration is valid.
+     * A configuration is valid if (1) the domain and the problem files exist and
+     * can be read, (2) the timeout is greater than 0, (3) the weight of the
+     * heuristic is greater than 0 and (4) the heuristic is a not null.
+     *
+     * @return <code>true</code> if the configuration is valid <code>false</code> otherwise.
+     */
+    public boolean hasValidConfiguration() {
+        return super.hasValidConfiguration()
+            && this.getHeuristicWeight() > 0.0
+            && this.getHeuristic() != null;
+    }
+	
+    /**
+     * This method return the default arguments of the planner.
+     *
+     * @return the default arguments of the planner.
+     * @see PlannerConfiguration
+     */
+    public static PlannerConfiguration getDefaultConfiguration() {
+        PlannerConfiguration config = Planner.getDefaultConfiguration();
+        config.setProperty(MCP.HEURISTIC_SETTING, MCP.DEFAULT_HEURISTIC.toString());
+        config.setProperty(MCP.WEIGHT_HEURISTIC_SETTING,
+            Double.toString(MCP.DEFAULT_WEIGHT_HEURISTIC));
+        return config;
+    }
+
+    /**
+     * Returns the configuration of the planner.
+     *
+     * @return the configuration of the planner.
+     */
+    @Override
+    public PlannerConfiguration getConfiguration() {
+        final PlannerConfiguration config = super.getConfiguration();
+        config.setProperty(MCP.HEURISTIC_SETTING, this.getHeuristic().toString());
+        config.setProperty(MCP.WEIGHT_HEURISTIC_SETTING, Double.toString(this.getHeuristicWeight()));
+        return config;
+    }
+
+    /**
+     * Sets the configuration of the planner. If a planner setting is not defined in
+     * the specified configuration, the setting is initialized with its default value.
+     *
+     * @param configuration the configuration to set.
+     */
+    @Override
+    public void setConfiguration(final PlannerConfiguration configuration) {
+        super.setConfiguration(configuration);
+        if (configuration.getProperty(MCP.WEIGHT_HEURISTIC_SETTING) == null) {
+            this.setHeuristicWeight(MCP.DEFAULT_WEIGHT_HEURISTIC);
+        } else {
+            this.setHeuristicWeight(Double.parseDouble(configuration.getProperty(
+                MCP.WEIGHT_HEURISTIC_SETTING)));
+        }
+        if (configuration.getProperty(MCP.HEURISTIC_SETTING) == null) {
+            this.setHeuristic(MCP.DEFAULT_HEURISTIC);
+        } else {
+            this.setHeuristic(StateHeuristic.Name.valueOf(configuration.getProperty(
+                MCP.HEURISTIC_SETTING)));
+        }
+    }
 
 	/**
-	 * 
+	 * The main method of the <code>MCP</code> planner.
+	 * Launch both MCP and HSP on all the problems of the blocks, depot, gripper and logistics domains.
+	 * Write the results in a csv file.
+	 *
+	 * @param args the arguments of the command line.
 	 */
-	public Plan monteCarlo(Problem problem){
+	public static void main(String[] args) throws IOException {
+		try {
+			final MCP mcpPlanner = new MCP();
+			final HSP hspPlanner = new HSP();
+			File resultFile = new File("src/pddl/data.csv");
+			BufferedWriter writer = new BufferedWriter(new FileWriter(resultFile));
+			writer.write("domain,problem_number,MCP_time,MCP_length,HSP_time,HSP_length");
+			writer.newLine();
+			List<File> blocks_pb = List.of(new File("src/pddl/blocks").listFiles());
+			List<File> depot_pb = List.of(new File("src/pddl/depot").listFiles());
+			List<File> gripper_pb = List.of(new File("src/pddl/gripper").listFiles());
+			List<File> logistics_pb = List.of(new File("src/pddl/logistics").listFiles());
+			Map<File, List<File>> pddlFiles = new TreeMap<>();
+			pddlFiles.put(new File("src/pddl/blocks_domain.pddl"), blocks_pb);
+			pddlFiles.put(new File("src/pddl/depot_domain.pddl"), depot_pb);
+			pddlFiles.put(new File("src/pddl/gripper_domain.pddl"), gripper_pb);
+			pddlFiles.put(new File("src/pddl/logistics_domain.pddl"), logistics_pb);
+			for(File domainFile : pddlFiles.keySet()) {
+				for(File problemFile : pddlFiles.get(domainFile)) {
+					String domainPath = domainFile.getPath();
+					String problemPath = problemFile.getPath();
+					mcpPlanner.setDomain(domainPath);
+					hspPlanner.setDomain(domainPath);
+					mcpPlanner.setProblem(problemPath);
+					hspPlanner.setProblem(problemPath);
+					String mcpResults = launch(mcpPlanner);
+					String hspResults = launch(hspPlanner);
+					String domain = domainFile.getName();
+					domain = domain.substring(0, domainFile.getName().lastIndexOf("_"));
+					String problem = String.valueOf(pddlFiles.get(domainFile).indexOf(problemFile) + 1);
+					writer.write(domain + "," + problem + "," + mcpResults + "," + hspResults);
+					writer.newLine();
+				}
+			}
+			writer.close();
+		} catch (IllegalArgumentException e) {
+			LOGGER.fatal(e.getMessage());
+		}
+	}
+
+	/**
+	 * Launch a planner on a problem.
+	 * @param planner the planner
+	 * @return the results of the planner
+	 * @throws FileNotFoundException
+	 */
+	private static String launch(AbstractPlanner planner) throws FileNotFoundException {
+		try {
+			Plan p = planner.solve();
+			Statistics s = planner.getStatistics();
+			double TimeSpent = s.getTimeToParse() + s.getTimeToEncode() + s.getTimeToSearch();
+			int planLength = p == null ? 0 : p.size();
+			return TimeSpent + "," + planLength;
+		}
+		catch(InvalidConfigurationException e) {
+			return "";
+		}
+	}
+    /**
+     * Search a solution plan for a planning problem using a Monte-Carlo search strategy.
+     *
+     * @param problem the problem to solve.
+     * @return a plan solution for the problem or null if there is no solution
+     */
+	public Plan monteCarlo(Problem problem) {
 		StateHeuristic heuristic = StateHeuristic.getInstance(this.getHeuristic(), problem);
 		State init = new State(problem.getInitialState());
 		Node n = new Node(init, null, -1, 0, 0, heuristic.estimate(init, problem.getGoal()));
 		double hMin = n.getHeuristic();
 		int counter = 0;
 		while (!n.satisfy(problem.getGoal())) {
-			if (counter >= MAX_STEPS || getApplicableActions(problem, n).isEmpty()) {
+			if (counter >= MAX_STEPS || getActions(problem, n).isEmpty()) {
 				n = new Node(init, null, -1, 0, 0, heuristic.estimate(init, problem.getGoal()));
 				counter = 0;
 			}
@@ -144,9 +342,13 @@ public class MCP extends AbstractPlanner {
 		return extractPlan(n, problem);
 	}
 
-	/**
-	 * 
-	 */
+    /**
+     * Extracts a search from a specified node.
+     *
+     * @param node    the node.
+     * @param problem the problem.
+     * @return the search extracted from the specified node.
+     */
 	private Plan extractPlan(final Node node, final Problem problem) {
 		Node n = node;
 		final Plan plan = new SequentialPlan();
@@ -159,81 +361,41 @@ public class MCP extends AbstractPlanner {
 	}
 
 	/**
-	 *
+	 * The pure random walk algorithm from the "Monte-Carlo Exploration for Deterministic Planning" paper.
+	 * @param p the problem
+	 * @param s the node
+	 * @param heuristic the heuristic
+	 * @return the new node
 	 */
 	public Node randomWalkAlgo(Problem p, Node s, StateHeuristic heuristic) {
-		/**
-		 * L'heuristique poids minimal. On l'initialise à +infini pour être sûr de
-		 * trouver un minimum.
-		 */
 		double hMin = Double.MAX_VALUE;
-		/**
-		 * sMin est le Node associé à cette heuristique minimale.
-		 */
 		Node sMin = null;
-		/**
-		 * On fait un certain nombre de "Walks" pour explorer le voisinage de s.
-		 * NUM_WALK modélise la largeur du voisinage de s.
-		 */
 		for (int i = 0; i < NUM_WALK; i++) {
 			Node sPrim = s;
-			/**
-			 * Pour chaque "walk", on détermine un nombre de pas. Un "walk" consiste
-			 * d'aller d'un noeud au suivant LENGTH_WALK fois. LENGTH_WALK modélise la
-			 * profondeur du voisinage.
-			 */
 			for (int j = 1; j < LENGTH_WALK; j++) {
-				/**
-				 * Pour chaque transition de s', on cherche aléatoirement une action applicable à s' parmi toutes les
-				 * actions pour trouver s''.
-				 */
-
-				/**
-				 * On récupère ici les actions applicables à s' grâce au Problem. Si on n'en
-				 * trouve aucune, c'est que ce noeud s' n'a pas de noeud successeur s''. On
-				 * passe donc au "Walk" d'après.
-				 */
-				List<Action> A = this.getApplicableActions(p, sPrim);
+				List<Action> A = this.getActions(p, sPrim);
 				if (A.isEmpty())
 					break;
-
-				/**
-				 * On choisit aléatoirement une Action applicable à s' pour trouver s''.
-				 */
-				Action a = UniformlyRandomSelectFrom(A);
-				sPrim = apply(p, sPrim, a, heuristic);
-
+				Action a = pickRandomAction(A);
+				sPrim = putAction(p, sPrim, a, heuristic);
 				if (sPrim.satisfy(p.getGoal()))
 					return sPrim;
 			}
-			/**
-			 * Au bout du voisinage, on calcule l'heuristique de sPrim. Il s'agit d'un
-			 * calcul qui approxime la distance entre sPrim et l'état Goal.
-			 * Si la valeur de l'heuristique est meilleure (plus petite), on met à jour hMin
-			 * et sMin.
-			 */
 			if (sPrim.getHeuristic() < hMin) {
 				hMin = sPrim.getHeuristic();
 				sMin = sPrim;
 			}
 		}
-
-		/**
-		 * Retourne le meilleur Node du voisinage de s. S'il n'y en a pas, retourne s.
-		 */
 		return sMin == null ? s : sMin;
 	}
 
 	/**
-	 * Retourne les actions applicables au Node en paramètre suivant un Problem.
-	 * Peut
-	 * retourner une Liste d'Action vide, mais jamais null.
-	 *
-	 * @param p Le problem en cours.
-	 * @param n Un noeud.
-	 * @return une List d'Actions.
+	 * Get all applicable actions from a node.
+	 * @param p the problem
+	 * @param n the node
+	 * @return a list of applicable actions
 	 */
-	private List<Action> getApplicableActions(Problem p, Node n) {
+	private List<Action> getActions(Problem p, Node n) {
 		List<Action> actions = p.getActions();
 		List<Action> applicableActions = new ArrayList<>();
 		for (Action a : actions)
@@ -243,98 +405,29 @@ public class MCP extends AbstractPlanner {
 	}
 
 	/**
-	 * Choisis aléatoirement (suivant loi uniforme) une Action parmi une List
-	 * d'Actions.
-	 *
-	 * @param listActions Une List d'Actions.
-	 * @return Une Action choisie aléatoirement dans la liste.
+	 * Pick a random Action in a list of Actions
+	 * @param listActions a list of Actions
+	 * @return a random Action
 	 */
-	private Action UniformlyRandomSelectFrom(List<Action> listActions) {
+	private Action pickRandomAction(List<Action> listActions) {
 		Collections.shuffle(listActions);
 		return listActions.get(0);
 	}
 
 	/**
-	 * Applique une action au Node en paramètre pour renvoyer le Node résultant.
-	 * @param p Le Problem.
-	 * @param n Le Node.
-	 * @param a L'action appliquée sur n.
-	 * @param heuristic L'heuristique utilisée.
-	 * @return Le Noeud fils de n après l'action a.
+	 * Apply an action to a node and return the new node.
+	 * @param p the problem
+	 * @param n the node
+	 * @param a the action
+	 * @param heuristic the heuristic
+	 * @return the new node
 	 */
-	public Node apply(Problem p, Node n, Action a, StateHeuristic heuristic) {
+	public Node putAction(Problem p, Node n, Action a, StateHeuristic heuristic) {
 		State s = new State(n);
 		s.apply(a.getConditionalEffects());
-		Node enfant = new Node(s, n, p.getActions().indexOf(a), n.getCost() + 1, n.getDepth() + 1, 0);
-		enfant.setHeuristic(heuristic.estimate(enfant, p.getGoal()));
-		return enfant;
-	}
-
-	/**
-	 * The main method of the <code>MCP</code> planner.
-	 *
-	 * @param args the arguments of the command line.
-	 */
-	public static void main(String[] args) throws IOException {
-		try {
-			final MCP mrwPlanner = new MCP();
-			final HSP hspPlanner = new HSP();
-			File resultFile = new File("src/pddl/data.csv");
-			BufferedWriter writer = new BufferedWriter(new FileWriter(resultFile));
-			writer.write("domain,problem_number,MCP_time,MCP_length,HSP_time,HSP_length");
-			writer.newLine();
-
-
-			List<File> blocks_problems = List.of(new File("src/pddl/blocks").listFiles());
-			//List<File> depot_problems = List.of(new File("src/pddl/depot").listFiles());
-			List<File> gripper_problems = List.of(new File("src/pddl/gripper").listFiles());
-			List<File> logistics_problems = List.of(new File("src/pddl/logistics").listFiles());
-
-			Map<File, List<File>> pddlFiles = new TreeMap<>();
-			pddlFiles.put(new File("src/pddl/blocks_domain.pddl"), blocks_problems);
-			//pddlFiles.put(new File("src/pddl/depot_domain.pddl"), depot_problems);
-			pddlFiles.put(new File("src/pddl/gripper_domain.pddl"), gripper_problems);
-			pddlFiles.put(new File("src/pddl/logistics_domain.pddl"), logistics_problems);
-
-			for(File domainFile : pddlFiles.keySet()) {
-				for(File problemFile : pddlFiles.get(domainFile)) {
-					String domainPath = domainFile.getPath();
-					String problemPath = problemFile.getPath();
-					mrwPlanner.setDomain(domainPath);
-					hspPlanner.setDomain(domainPath);
-					mrwPlanner.setProblem(problemPath);
-					hspPlanner.setProblem(problemPath);
-
-					String mrwResults = launch(mrwPlanner);
-					String hspResults = launch(hspPlanner);
-
-					String domain = domainFile.getName();
-					domain = domain.substring(7, domainFile.getName().lastIndexOf("."));
-					String problem = String.valueOf(pddlFiles.get(domainFile).indexOf(problemFile) + 1);
-					writer.write(domain + "," + problem + "," + mrwResults + "," + hspResults);
-					writer.newLine();
-				}
-			}
-
-			writer.close();
-
-		} catch (IllegalArgumentException e) {
-			LOGGER.fatal(e.getMessage());
-		}
-	}
-
-	private static String launch(AbstractPlanner planner) throws FileNotFoundException {
-		try {
-			Plan p = planner.solve();
-			Statistics s = planner.getStatistics();
-			double TimeSpent = s.getTimeToParse() + s.getTimeToEncode() + s.getTimeToSearch();
-			int planLength = p == null ? 0 : p.size();
-			return TimeSpent + "," + planLength;
-		}
-		catch(InvalidConfigurationException e) {
-			return "";
-		}
-
+		Node child = new Node(s, n, p.getActions().indexOf(a), n.getCost() + 1, n.getDepth() + 1, 0);
+		child.setHeuristic(heuristic.estimate(child, p.getGoal()));
+		return child;
 	}
 
 	/**

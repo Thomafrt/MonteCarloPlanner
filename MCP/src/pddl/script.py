@@ -1,23 +1,19 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 
-
 def process_domain(data, domain_data, domain_name):
-    for i in data.index:
-        print(f"Processing row {i} with domain: {data.domain[i]}")
-        if data.domain[i] == domain_name:
-            domain_data["times_MCP"].append(data.MCP_time[i])
-            domain_data["steps_MCP"].append(data.MCP_length[i])
-            domain_data["times_HSP"].append(data.HSP_time[i])
-            domain_data["steps_HSP"].append(data.HSP_length[i])
-            domain_data["problems"].append(str(data.problem_number[i]))
-            print(f"Data appended for {domain_name}.")
-
+    sorted_data = data[data['domain'] == domain_name].sort_values(by='problem_number')
+    
+    for i in sorted_data.index:
+        print(f"Processing row {i} with domain: {sorted_data.domain[i]}")
+        domain_data["times_MCP"].append(sorted_data.MCP_time[i])
+        domain_data["steps_MCP"].append(sorted_data.MCP_length[i])
+        domain_data["times_HSP"].append(sorted_data.HSP_time[i])
+        domain_data["steps_HSP"].append(sorted_data.HSP_length[i])
+        domain_data["problems"].append(str(sorted_data.problem_number[i]))
+        print(f"Data appended for {domain_name}.")
 
 def plot_graph(title, x_label, y_label, problems, times_MCP, times_HSP, filename):
-    sorted_times = sorted(zip(times_HSP, times_MCP, problems))
-    times_HSP, times_MCP, problems = zip(*sorted_times)
-
     plt.figure()
     plt.xlabel(x_label)
     plt.ylabel(y_label)
@@ -26,7 +22,6 @@ def plot_graph(title, x_label, y_label, problems, times_MCP, times_HSP, filename
     plt.plot(problems, times_HSP, label="HSP")
     plt.legend()
     plt.savefig(filename)
-
 
 print("Data read from CSV:")
 data = pd.read_csv("data.csv", on_bad_lines="skip")
@@ -56,9 +51,9 @@ gripper_data = {
 }
 
 # Process domains
-process_domain(data, blocks_data, "domain")
-process_domain(data, gripper_data, "_domain")
-process_domain(data, logistics_data, "cs_domain")
+process_domain(data, blocks_data, "blocks")
+process_domain(data, gripper_data, "gripper")
+process_domain(data, logistics_data, "logistics")
 
 # Plot graphs
 plot_graph(

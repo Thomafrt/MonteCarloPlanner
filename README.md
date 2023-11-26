@@ -1,7 +1,9 @@
 # MonteCarloPlanner
 A Monte-Carlo tree search planning for pddl4j
 
+Le dossier ASP est une reproduction du tutoriel disponible ici : http://pddl4j.imag.fr/writing_your_own_planner.html
 
+Le dossier MCP contient le Monte-Carlo tree search planning.
 Le programme se trouve dans src/fr/uga/pddl4j/examples/asp/MCP.java
 Ce fichier implémente un planner de type Monte-Carlo avec l'algorithme Pure Random Walk.
 

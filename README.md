@@ -1,5 +1,5 @@
-# MonteCarloPlanner
-A Monte-Carlo tree search planning for pddl4j
+# A Monte-Carlo tree search planning for pddl4j
+
 
 Le dossier ASP est une reproduction du tutoriel disponible ici : http://pddl4j.imag.fr/writing_your_own_planner.html
 
